@@ -153,42 +153,12 @@ function renderDashboard() {
   const grid = document.getElementById("conditions-grid");
   grid.innerHTML = "";
   for (const fav of FAVORITES) {
-    const state = draft.conditions[fav.key];
-    const met = state.met;
-    const played = state.played;
-    const card = document.createElement("div");
-    card.className = `cond-card${met && played ? " is-met" : ""}${played ? "" : " is-not-played"}`;
-    card.style.setProperty("--club-color", fav.color);
-    card.innerHTML = `
-      <div class="cond-card-head">
-        <span class="cond-flag">${fav.flag}</span>
-        <span class="cond-name">${fav.label}</span>
-      </div>
-      <div class="cond-status">
-        <span>${played ? fav.condition : "N'a pas joué"}</span>
-        <span class="cond-badge ${met && played ? "is-yes" : "is-no"}">${played ? (met ? "✅" : "❌") : "—"}</span>
-      </div>
-      <div class="cond-hint">${played ? `Touche pour ${met ? "annuler" : "valider"}` : "Exclue du calcul cette période"}</div>
-      <button type="button" class="cond-not-played-btn" data-key="${fav.key}">
-        ${played ? "🚫 Marquer : pas de match" : "↩️ A joué cette semaine"}
-      </button>
-    `;
-    card.addEventListener("click", (e) => {
-      if (e.target.closest(".cond-not-played-btn")) return; // géré par son propre listener
-      if (!draft.conditions[fav.key].played) return; // rien à cocher si exclue
-      draft.conditions[fav.key].met = !draft.conditions[fav.key].met;
-      saveDraft(draft);
-      renderDashboard();
-    });
-    card.querySelector(".cond-not-played-btn").addEventListener("click", (e) => {
-      e.stopPropagation();
-      const s = draft.conditions[fav.key];
-      s.played = !s.played;
-      if (!s.played) s.met = false;
-      saveDraft(draft);
-      renderDashboard();
-    });
-    grid.appendChild(card);
+    grid.appendChild(
+      buildConditionCard(fav, draft, () => {
+        saveDraft(draft);
+        renderDashboard();
+      })
+    );
   }
 
   // toggles bonus
@@ -202,6 +172,48 @@ function renderDashboard() {
 function updateToggle(key) {
   const btn = document.querySelector(`.toggle-switch[data-key="${key}"]`);
   btn.classList.toggle("is-on", !!draft[key]);
+}
+
+/**
+ * Construit une carte condition (utilisée à la fois sur le Dashboard
+ * et dans la modale d'édition d'une période passée).
+ * `stateObj` doit avoir la forme { conditions: { key: {met, played} } }.
+ * `onChange` est appelé après chaque modification, pour re-render/sauver.
+ */
+function buildConditionCard(fav, stateObj, onChange) {
+  const state = stateObj.conditions[fav.key];
+  const met = state.met;
+  const played = state.played;
+  const card = document.createElement("div");
+  card.className = `cond-card${met && played ? " is-met" : ""}${played ? "" : " is-not-played"}`;
+  card.style.setProperty("--club-color", fav.color);
+  card.innerHTML = `
+    <div class="cond-card-head">
+      <span class="cond-flag">${fav.flag}</span>
+      <span class="cond-name">${fav.label}</span>
+    </div>
+    <div class="cond-status">
+      <span>${played ? fav.condition : "N'a pas joué"}</span>
+      <span class="cond-badge ${met && played ? "is-yes" : played ? "is-no" : "is-not-played"}">${played ? (met ? "✅" : "❌") : "🤍"}</span>
+    </div>
+    <div class="cond-hint">${played ? `Touche pour ${met ? "annuler" : "valider"}` : "Exclue du calcul cette période"}</div>
+    <button type="button" class="cond-not-played-btn" data-key="${fav.key}">
+      ${played ? "🚫 Marquer : pas de match" : "↩️ A joué cette semaine"}
+    </button>
+  `;
+  card.addEventListener("click", (e) => {
+    if (e.target.closest(".cond-not-played-btn")) return;
+    if (!state.played) return;
+    state.met = !state.met;
+    onChange();
+  });
+  card.querySelector(".cond-not-played-btn").addEventListener("click", (e) => {
+    e.stopPropagation();
+    state.played = !state.played;
+    if (!state.played) state.met = false;
+    onChange();
+  });
+  return card;
 }
 
 function makeChip(text, cls) {
@@ -261,7 +273,7 @@ function renderHistory() {
     const metLabels = FAVORITES.filter((f) => conditions[f.key]?.played && conditions[f.key]?.met)
       .map((f) => `${f.flag} ${f.label}`);
     const notPlayedLabels = FAVORITES.filter((f) => !(conditions[f.key]?.played ?? true))
-      .map((f) => `${f.flag} n'a pas joué`);
+      .map((f) => `🤍 ${f.label} (n'a pas joué)`);
     const bonusLabels = [];
     if (entry.barcaNoWin) bonusLabels.push("🚫 Barça");
     if (entry.manuNoWin) bonusLabels.push("🚫 Man Utd");
@@ -275,19 +287,10 @@ function renderHistory() {
         <div class="day-date">${formatRange(entry.startDate, entry.endDate)}</div>
         <div class="day-conditions">${detail}</div>
       </div>
-      <button class="day-delete" aria-label="Supprimer" data-id="${entry.id}">🗑️</button>
     `;
+    div.addEventListener("click", () => openEditModal(entry.id));
     list.appendChild(div);
   }
-
-  list.querySelectorAll(".day-delete").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const id = btn.dataset.id;
-      const updated = loadHistory().filter((e) => e.id !== id);
-      saveHistory(updated);
-      renderHistory();
-    });
-  });
 }
 
 function renderLast100(history) {
@@ -323,6 +326,90 @@ function formatRange(startIso, endIso) {
 }
 
 // ---------------------------------------------------------
+// Modale détail / édition d'une période de l'historique
+// ---------------------------------------------------------
+let editingEntry = null; // copie de travail de l'entrée en cours d'édition
+
+function openEditModal(id) {
+  const entry = loadHistory().find((e) => e.id === id);
+  if (!entry) return;
+  // copie profonde pour ne rien modifier tant que ce n'est pas enregistré
+  editingEntry = JSON.parse(JSON.stringify(entry));
+  renderEditModal();
+  document.getElementById("edit-modal").hidden = false;
+}
+
+function closeEditModal() {
+  document.getElementById("edit-modal").hidden = true;
+  editingEntry = null;
+}
+
+function renderEditModal() {
+  if (!editingEntry) return;
+
+  const grid = document.getElementById("edit-conditions-grid");
+  grid.innerHTML = "";
+  for (const fav of FAVORITES) {
+    grid.appendChild(buildConditionCard(fav, editingEntry, renderEditModal));
+  }
+
+  document.getElementById("edit-toggle-barca").classList.toggle("is-on", !!editingEntry.barcaNoWin);
+  document.getElementById("edit-toggle-manu").classList.toggle("is-on", !!editingEntry.manuNoWin);
+  document.getElementById("edit-trophy-count").textContent = editingEntry.trophies || 0;
+  document.getElementById("edit-period-start").value = editingEntry.startDate;
+  document.getElementById("edit-period-end").value = editingEntry.endDate;
+}
+
+function setupEditModal() {
+  document.getElementById("edit-close").addEventListener("click", closeEditModal);
+  document.getElementById("edit-modal").addEventListener("click", (e) => {
+    if (e.target.id === "edit-modal") closeEditModal();
+  });
+
+  document.getElementById("edit-toggle-barca").addEventListener("click", () => {
+    editingEntry.barcaNoWin = !editingEntry.barcaNoWin;
+    renderEditModal();
+  });
+  document.getElementById("edit-toggle-manu").addEventListener("click", () => {
+    editingEntry.manuNoWin = !editingEntry.manuNoWin;
+    renderEditModal();
+  });
+  document.getElementById("edit-trophy-plus").addEventListener("click", () => {
+    editingEntry.trophies = (editingEntry.trophies || 0) + 1;
+    renderEditModal();
+  });
+  document.getElementById("edit-trophy-minus").addEventListener("click", () => {
+    editingEntry.trophies = Math.max(0, (editingEntry.trophies || 0) - 1);
+    renderEditModal();
+  });
+  document.getElementById("edit-period-start").addEventListener("change", (e) => {
+    editingEntry.startDate = e.target.value;
+  });
+  document.getElementById("edit-period-end").addEventListener("change", (e) => {
+    editingEntry.endDate = e.target.value;
+  });
+
+  document.getElementById("edit-save").addEventListener("click", () => {
+    const history = loadHistory();
+    const idx = history.findIndex((e) => e.id === editingEntry.id);
+    if (idx !== -1) {
+      history[idx] = editingEntry;
+      saveHistory(history);
+    }
+    closeEditModal();
+    renderHistory();
+  });
+
+  document.getElementById("edit-delete").addEventListener("click", () => {
+    if (!confirm("Supprimer définitivement cette période ?")) return;
+    const updated = loadHistory().filter((e) => e.id !== editingEntry.id);
+    saveHistory(updated);
+    closeEditModal();
+    renderHistory();
+  });
+}
+
+// ---------------------------------------------------------
 // Navigation par onglets
 // ---------------------------------------------------------
 function switchTab(name) {
@@ -335,6 +422,8 @@ function switchTab(name) {
 // Init
 // ---------------------------------------------------------
 function init() {
+  setupEditModal();
+
   document.querySelectorAll(".tab-btn").forEach((btn) => {
     btn.addEventListener("click", () => switchTab(btn.dataset.tab));
   });
