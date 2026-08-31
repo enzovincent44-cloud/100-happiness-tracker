@@ -15,6 +15,30 @@ import { STORAGE_KEYS, CACHE_TTL, loadSettings } from "./config.js";
 
 const DIRECT_API_BASE = "https://v3.football.api-sports.io";
 
+// ---------------------------------------------------------
+// File d'attente + limiteur de débit
+//
+// Le plan gratuit d'API-Football autorise seulement 10
+// requêtes par minute. On sérialise donc tous les appels et
+// on espace chaque requête d'un peu plus de 6 secondes pour
+// ne jamais dépasser cette limite, même quand plusieurs
+// appels sont demandés "en même temps" par le code.
+// ---------------------------------------------------------
+const MIN_INTERVAL_MS = 6500; // ~9 requêtes/minute, marge de sécurité
+let queueTail = Promise.resolve();
+let lastCallAt = 0;
+
+function throttledFetch(doFetch) {
+  const run = queueTail.then(async () => {
+    const wait = Math.max(0, lastCallAt + MIN_INTERVAL_MS - Date.now());
+    if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+    lastCallAt = Date.now();
+    return doFetch();
+  });
+  queueTail = run.catch(() => {});
+  return run;
+}
+
 export class ApiError extends Error {
   constructor(message, { offline = false } = {}) {
     super(message);
@@ -77,9 +101,9 @@ async function rawGet(endpoint, params = {}) {
 
   let response;
   try {
-    response = await fetch(url, {
-      headers: mode === "direct" ? { "x-apisports-key": key } : {},
-    });
+    response = await throttledFetch(() =>
+      fetch(url, { headers: mode === "direct" ? { "x-apisports-key": key } : {} })
+    );
   } catch (err) {
     throw new ApiError("Impossible de contacter le serveur de données. Réessaie plus tard.");
   }
