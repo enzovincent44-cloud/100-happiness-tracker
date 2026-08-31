@@ -105,10 +105,65 @@
       <div id="last100-content">Aucune période enregistrée pour le moment.</div>
     </div>
 
+    <p class="intro-text">Touche une période pour voir le détail et la modifier si besoin.</p>
+
     <div id="history-list" class="list-stack"></div>
   </section>
 
 </main>
+
+<!-- MODALE DÉTAIL / ÉDITION D'UNE PÉRIODE -->
+<div id="edit-modal" class="modal" hidden>
+  <div class="modal-card">
+    <div class="modal-header">
+      <h2>Détail de la période</h2>
+      <button id="edit-close" class="icon-btn" aria-label="Fermer">✕</button>
+    </div>
+
+    <div class="conditions-grid" id="edit-conditions-grid"></div>
+
+    <div class="bonus-card">
+      <h3>Bonus &amp; malus</h3>
+      <div class="toggle-row">
+        <div class="toggle-row-text">
+          <span>🚫🔵🔴 FC Barcelone ne gagne pas</span>
+          <span class="toggle-row-amount">+5%</span>
+        </div>
+        <button class="toggle-switch" id="edit-toggle-barca" aria-label="FC Barcelone ne gagne pas"></button>
+      </div>
+      <div class="toggle-row">
+        <div class="toggle-row-text">
+          <span>🚫🔴 Manchester United ne gagne pas</span>
+          <span class="toggle-row-amount">+2%</span>
+        </div>
+        <button class="toggle-switch" id="edit-toggle-manu" aria-label="Manchester United ne gagne pas"></button>
+      </div>
+      <div class="trophy-stepper">
+        <div class="toggle-row-text">
+          <span>🏆 Trophées gagnés cette période</span>
+          <span class="toggle-row-amount">+50% chacun</span>
+        </div>
+        <div class="stepper">
+          <button id="edit-trophy-minus" class="stepper-btn" aria-label="Moins">−</button>
+          <span id="edit-trophy-count">0</span>
+          <button id="edit-trophy-plus" class="stepper-btn" aria-label="Plus">+</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="period-card">
+      <label class="field-label" for="edit-period-start">Du</label>
+      <input id="edit-period-start" type="date" />
+      <label class="field-label" for="edit-period-end">Au</label>
+      <input id="edit-period-end" type="date" />
+    </div>
+
+    <div class="modal-actions">
+      <button id="edit-delete" class="btn-secondary">🗑️ Supprimer cette période</button>
+      <button id="edit-save" class="btn-primary">💾 Enregistrer les modifications</button>
+    </div>
+  </div>
+</div>
 
 <nav class="tabbar">
   <button class="tab-btn is-active" data-tab="dashboard">
