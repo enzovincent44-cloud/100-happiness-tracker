@@ -24,7 +24,7 @@ const DIRECT_API_BASE = "https://v3.football.api-sports.io";
 // ne jamais dépasser cette limite, même quand plusieurs
 // appels sont demandés "en même temps" par le code.
 // ---------------------------------------------------------
-const MIN_INTERVAL_MS = 6500; // ~9 requêtes/minute, marge de sécurité
+const MIN_INTERVAL_MS = 7500; // ~9 requêtes/minute, marge de sécurité
 let queueTail = Promise.resolve();
 let lastCallAt = 0;
 
