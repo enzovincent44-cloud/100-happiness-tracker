@@ -49,6 +49,11 @@
     <div class="conditions-grid" id="conditions-grid">
       <!-- injecté par js/app.js -->
     </div>
+    <p class="intro-text">
+      Une équipe n'a pas joué cette période (semaine sans match, trêve...) ?
+      Utilise le petit bouton sous sa carte pour l'exclure du calcul — le
+      pourcentage se répartit alors sur les équipes qui ont vraiment joué.
+    </p>
 
     <div class="bonus-card">
       <h3>Bonus &amp; malus</h3>
@@ -80,8 +85,10 @@
     </div>
 
     <div class="period-card">
-      <label class="field-label" for="period-date">Date de cette période</label>
-      <input id="period-date" type="date" />
+      <label class="field-label" for="period-start">Du</label>
+      <input id="period-start" type="date" />
+      <label class="field-label" for="period-end">Au</label>
+      <input id="period-end" type="date" />
       <div class="period-actions">
         <button id="save-btn" class="btn-primary">💾 Enregistrer cette période</button>
         <button id="reset-btn" class="btn-secondary">↺ Réinitialiser sans enregistrer</button>
