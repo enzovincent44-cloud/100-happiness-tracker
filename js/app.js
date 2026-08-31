@@ -23,7 +23,10 @@ const CIRCUMFERENCE = 2 * Math.PI * 96;
 function loadDraft() {
   try {
     const raw = localStorage.getItem(STORAGE.draft);
-    if (raw) return JSON.parse(raw);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && parsed.conditions) return parsed;
+    }
   } catch {
     /* ignore */
   }
@@ -31,16 +34,35 @@ function loadDraft() {
 }
 
 function blankDraft() {
+  const { start, end } = currentWeekRange();
+  const conditions = {};
+  FAVORITES.forEach((f) => {
+    conditions[f.key] = { met: false, played: true };
+  });
   return {
-    ronaldo: false,
-    real: false,
-    nantes: false,
-    liverpool: false,
+    conditions,
     barcaNoWin: false,
     manuNoWin: false,
     trophies: 0,
-    date: new Date().toISOString().slice(0, 10),
+    startDate: start,
+    endDate: end,
   };
+}
+
+/** Lundi -> dimanche de la semaine en cours (au format YYYY-MM-DD) */
+function currentWeekRange() {
+  const now = new Date();
+  const day = now.getDay(); // 0 = dimanche, 1 = lundi, ...
+  const diffToMonday = day === 0 ? -6 : 1 - day;
+  const monday = new Date(now);
+  monday.setDate(now.getDate() + diffToMonday);
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+  return { start: toIsoDate(monday), end: toIsoDate(sunday) };
+}
+
+function toIsoDate(d) {
+  return d.toISOString().slice(0, 10);
 }
 
 function saveDraft(draft) {
@@ -64,12 +86,21 @@ function saveHistory(list) {
 // Calcul du score
 // ---------------------------------------------------------
 function computeScore(d) {
-  const conditionsMet = FAVORITES.filter((f) => d[f.key]).length;
-  const base = conditionsMet * 25;
+  const conditions = d.conditions || {};
+  const playedFavs = FAVORITES.filter((f) => (conditions[f.key]?.played ?? true));
+  const metCount = playedFavs.filter((f) => conditions[f.key]?.met).length;
+  const base = playedFavs.length > 0 ? Math.round((metCount / playedFavs.length) * 100) : 0;
   const barca = d.barcaNoWin ? 5 : 0;
   const manu = d.manuNoWin ? 2 : 0;
   const trophy = (d.trophies || 0) * 50;
-  return { conditionsMet, total: base + barca + manu + trophy, barca, manu, trophy };
+  return {
+    conditionsMet: metCount,
+    conditionsPlayed: playedFavs.length,
+    total: base + barca + manu + trophy,
+    barca,
+    manu,
+    trophy,
+  };
 }
 
 function emojiForScore(score) {
@@ -122,10 +153,11 @@ function renderDashboard() {
   const grid = document.getElementById("conditions-grid");
   grid.innerHTML = "";
   for (const fav of FAVORITES) {
-    const met = draft[fav.key];
-    const card = document.createElement("button");
-    card.type = "button";
-    card.className = `cond-card${met ? " is-met" : ""}`;
+    const state = draft.conditions[fav.key];
+    const met = state.met;
+    const played = state.played;
+    const card = document.createElement("div");
+    card.className = `cond-card${met && played ? " is-met" : ""}${played ? "" : " is-not-played"}`;
     card.style.setProperty("--club-color", fav.color);
     card.innerHTML = `
       <div class="cond-card-head">
@@ -133,13 +165,26 @@ function renderDashboard() {
         <span class="cond-name">${fav.label}</span>
       </div>
       <div class="cond-status">
-        <span>${fav.condition}</span>
-        <span class="cond-badge ${met ? "is-yes" : "is-no"}">${met ? "✅" : "❌"}</span>
+        <span>${played ? fav.condition : "N'a pas joué"}</span>
+        <span class="cond-badge ${met && played ? "is-yes" : "is-no"}">${played ? (met ? "✅" : "❌") : "—"}</span>
       </div>
-      <div class="cond-hint">Touche pour ${met ? "annuler" : "valider"}</div>
+      <div class="cond-hint">${played ? `Touche pour ${met ? "annuler" : "valider"}` : "Exclue du calcul cette période"}</div>
+      <button type="button" class="cond-not-played-btn" data-key="${fav.key}">
+        ${played ? "🚫 Marquer : pas de match" : "↩️ A joué cette semaine"}
+      </button>
     `;
-    card.addEventListener("click", () => {
-      draft[fav.key] = !draft[fav.key];
+    card.addEventListener("click", (e) => {
+      if (e.target.closest(".cond-not-played-btn")) return; // géré par son propre listener
+      if (!draft.conditions[fav.key].played) return; // rien à cocher si exclue
+      draft.conditions[fav.key].met = !draft.conditions[fav.key].met;
+      saveDraft(draft);
+      renderDashboard();
+    });
+    card.querySelector(".cond-not-played-btn").addEventListener("click", (e) => {
+      e.stopPropagation();
+      const s = draft.conditions[fav.key];
+      s.played = !s.played;
+      if (!s.played) s.met = false;
       saveDraft(draft);
       renderDashboard();
     });
@@ -150,7 +195,8 @@ function renderDashboard() {
   updateToggle("barcaNoWin");
   updateToggle("manuNoWin");
   document.getElementById("trophy-count").textContent = draft.trophies;
-  document.getElementById("period-date").value = draft.date;
+  document.getElementById("period-start").value = draft.startDate;
+  document.getElementById("period-end").value = draft.endDate;
 }
 
 function updateToggle(key) {
@@ -203,23 +249,30 @@ function renderHistory() {
     return;
   }
 
-  const sorted = [...history].sort((a, b) => new Date(b.date) - new Date(a.date));
+  const sorted = [...history].sort((a, b) => new Date(b.startDate) - new Date(a.startDate));
   list.innerHTML = "";
   for (const entry of sorted) {
-    const { conditionsMet, total } = computeScore(entry);
+    const { conditionsMet, conditionsPlayed, total } = computeScore(entry);
+    const conditions = entry.conditions || {};
     const div = document.createElement("div");
-    div.className = `day-entry${conditionsMet === 4 ? " is-full" : ""}`;
-    const metLabels = FAVORITES.filter((f) => entry[f.key]).map((f) => `${f.flag} ${f.label}`);
+    const isCoreFull = conditionsPlayed > 0 && conditionsMet === conditionsPlayed;
+    div.className = `day-entry${isCoreFull ? " is-full" : ""}`;
+
+    const metLabels = FAVORITES.filter((f) => conditions[f.key]?.played && conditions[f.key]?.met)
+      .map((f) => `${f.flag} ${f.label}`);
+    const notPlayedLabels = FAVORITES.filter((f) => !(conditions[f.key]?.played ?? true))
+      .map((f) => `${f.flag} n'a pas joué`);
     const bonusLabels = [];
     if (entry.barcaNoWin) bonusLabels.push("🚫 Barça");
     if (entry.manuNoWin) bonusLabels.push("🚫 Man Utd");
     if (entry.trophies) bonusLabels.push(`🏆 x${entry.trophies}`);
-    const detail = [...metLabels, ...bonusLabels].join(" · ") || "Rien coché";
+    const detail = [...metLabels, ...bonusLabels, ...notPlayedLabels].join(" · ") || "Rien coché";
+    const scoreSub = conditionsPlayed < 4 ? `${conditionsMet}/${conditionsPlayed} ont joué` : "";
 
     div.innerHTML = `
-      <div class="day-score">${total}%</div>
+      <div class="day-score">${total}%${scoreSub ? `<div class="day-score-sub">${scoreSub}</div>` : ""}</div>
       <div class="day-info">
-        <div class="day-date">${formatDate(entry.date)}</div>
+        <div class="day-date">${formatRange(entry.startDate, entry.endDate)}</div>
         <div class="day-conditions">${detail}</div>
       </div>
       <button class="day-delete" aria-label="Supprimer" data-id="${entry.id}">🗑️</button>
@@ -240,19 +293,33 @@ function renderHistory() {
 function renderLast100(history) {
   const el = document.getElementById("last100-content");
   const full = history
-    .filter((e) => computeScore(e).conditionsMet === 4)
-    .sort((a, b) => new Date(b.date) - new Date(a.date))[0];
+    .filter((e) => {
+      const { conditionsMet, conditionsPlayed } = computeScore(e);
+      return conditionsPlayed > 0 && conditionsMet === conditionsPlayed;
+    })
+    .sort((a, b) => new Date(b.startDate) - new Date(a.startDate))[0];
 
   if (!full) {
-    el.innerHTML = "Aucune période à 4/4 enregistrée pour le moment.";
+    el.innerHTML = "Aucune période à 100% enregistrée pour le moment.";
     return;
   }
-  el.innerHTML = `<strong>${formatDate(full.date)}</strong> — les 4 conditions étaient réunies 🔥`;
+  el.innerHTML = `<strong>${formatRange(full.startDate, full.endDate)}</strong> — toutes les équipes qui ont joué ont assuré 🔥`;
 }
 
 function formatDate(iso) {
   const d = new Date(iso);
   return d.toLocaleDateString("fr-FR", { weekday: "long", day: "2-digit", month: "long", year: "numeric" });
+}
+
+function formatShort(iso) {
+  const d = new Date(iso);
+  return d.toLocaleDateString("fr-FR", { day: "2-digit", month: "short" });
+}
+
+function formatRange(startIso, endIso) {
+  if (!startIso) return "Date inconnue";
+  if (!endIso || startIso === endIso) return formatDate(startIso);
+  return `${formatShort(startIso)} → ${formatShort(endIso)}`;
 }
 
 // ---------------------------------------------------------
@@ -292,8 +359,12 @@ function init() {
     renderDashboard();
   });
 
-  document.getElementById("period-date").addEventListener("change", (e) => {
-    draft.date = e.target.value;
+  document.getElementById("period-start").addEventListener("change", (e) => {
+    draft.startDate = e.target.value;
+    saveDraft(draft);
+  });
+  document.getElementById("period-end").addEventListener("change", (e) => {
+    draft.endDate = e.target.value;
     saveDraft(draft);
   });
 
