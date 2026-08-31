@@ -232,6 +232,21 @@ input { font-family: inherit; }
   font-size: 11px;
   color: var(--text-faint);
 }
+.cond-card.is-not-played {
+  opacity: 0.45;
+}
+.cond-not-played-btn {
+  margin-top: 8px;
+  width: 100%;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  color: var(--text-dim);
+  border-radius: var(--radius-sm);
+  padding: 6px 8px;
+  font-size: 10.5px;
+  cursor: pointer;
+}
+.cond-not-played-btn:active { transform: scale(0.97); }
 
 /* ---------- Bonus card ---------- */
 .bonus-card {
@@ -403,6 +418,13 @@ input { font-family: inherit; }
   width: 46px;
   text-align: center;
   flex-shrink: 0;
+}
+.day-score-sub {
+  font-family: var(--font-body);
+  font-weight: 400;
+  font-size: 9px;
+  color: var(--text-faint);
+  margin-top: 2px;
 }
 .day-info { flex: 1; }
 .day-date { font-size: 13px; font-weight: 600; }
