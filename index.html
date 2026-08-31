@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>100% Happiness Tracker</title>
+<meta name="description" content="Suivi du bonheur : Ronaldo, Real Madrid, FC Nantes, Liverpool FC" />
+<meta name="theme-color" content="#0b0d10" />
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🗿</text></svg>" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar-title">
+    <span class="topbar-emoji">🗿</span>
+    <span>100% Happiness Tracker</span>
+  </div>
+</header>
+
+<main id="app">
+
+  <!-- DASHBOARD -->
+  <section id="view-dashboard" class="view" data-view="dashboard">
+
+    <p class="intro-text">
+      Coche tes 4 conditions au fil du week-end, le score se met à jour tout
+      seul. Une fois la période terminée, enregistre-la dans l'historique.
+    </p>
+
+    <div class="gauge-card">
+      <div class="gauge-wrap">
+        <svg id="gauge-svg" viewBox="0 0 220 220" class="gauge-svg">
+          <circle cx="110" cy="110" r="96" class="gauge-track" />
+          <circle cx="110" cy="110" r="96" class="gauge-progress" id="gauge-progress" />
+        </svg>
+        <div class="gauge-center">
+          <div class="gauge-emoji" id="gauge-emoji">😭</div>
+          <div class="gauge-value"><span id="gauge-value">0</span><span class="gauge-pct">%</span></div>
+          <div class="gauge-label" id="gauge-label">Happiness</div>
+        </div>
+      </div>
+      <div class="gauge-bonus-row" id="gauge-bonus-row"></div>
+    </div>
+
+    <div class="conditions-grid" id="conditions-grid">
+      <!-- injecté par js/app.js -->
+    </div>
+
+    <div class="bonus-card">
+      <h3>Bonus &amp; malus</h3>
+      <div class="toggle-row" id="toggle-barca">
+        <div class="toggle-row-text">
+          <span>🚫🔵🔴 FC Barcelone ne gagne pas</span>
+          <span class="toggle-row-amount">+5%</span>
+        </div>
+        <button class="toggle-switch" data-key="barcaNoWin" aria-label="FC Barcelone ne gagne pas"></button>
+      </div>
+      <div class="toggle-row" id="toggle-manu">
+        <div class="toggle-row-text">
+          <span>🚫🔴 Manchester United ne gagne pas</span>
+          <span class="toggle-row-amount">+2%</span>
+        </div>
+        <button class="toggle-switch" data-key="manuNoWin" aria-label="Manchester United ne gagne pas"></button>
+      </div>
+      <div class="trophy-stepper">
+        <div class="toggle-row-text">
+          <span>🏆 Trophées gagnés cette période</span>
+          <span class="toggle-row-amount">+50% chacun</span>
+        </div>
+        <div class="stepper">
+          <button id="trophy-minus" class="stepper-btn" aria-label="Moins">−</button>
+          <span id="trophy-count">0</span>
+          <button id="trophy-plus" class="stepper-btn" aria-label="Plus">+</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="period-card">
+      <label class="field-label" for="period-date">Date de cette période</label>
+      <input id="period-date" type="date" />
+      <div class="period-actions">
+        <button id="save-btn" class="btn-primary">💾 Enregistrer cette période</button>
+        <button id="reset-btn" class="btn-secondary">↺ Réinitialiser sans enregistrer</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- HISTORIQUE -->
+  <section id="view-history" class="view" data-view="history" hidden>
+    <h2 class="view-title">🕒 Historique du bonheur</h2>
+
+    <div class="last100-card" id="last100-card">
+      <h3>Dernier 100% Happiness</h3>
+      <div id="last100-content">Aucune période enregistrée pour le moment.</div>
+    </div>
+
+    <div id="history-list" class="list-stack"></div>
+  </section>
+
+</main>
+
+<nav class="tabbar">
+  <button class="tab-btn is-active" data-tab="dashboard">
+    <span class="tab-icon">🗿</span><span>Dashboard</span>
+  </button>
+  <button class="tab-btn" data-tab="history">
+    <span class="tab-icon">🕒</span><span>Historique</span>
+  </button>
+</nav>
+
+<div id="celebration-layer" class="celebration-layer" hidden aria-hidden="true"></div>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
