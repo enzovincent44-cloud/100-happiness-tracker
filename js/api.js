@@ -190,24 +190,50 @@ export async function resolvePlayerId(searchName, teamId, fallbackId) {
 
 // ---------------------------------------------------------
 // Fixtures (matchs)
+//
+// Le plan gratuit d'API-Football n'autorise PAS les
+// paramètres pratiques "last"/"next" (Erreur : "Free plans
+// do not have access to the Last parameter."). On récupère
+// donc TOUTE la saison d'une équipe en un seul appel (mis en
+// cache), puis on trie/filtre nous-mêmes côté client pour en
+// extraire les derniers matchs joués ou les prochains.
 // ---------------------------------------------------------
+
+function currentSeason() {
+  // convention API-Football : une saison "2026" couvre l'été
+  // 2026 -> printemps 2027 (hémisphère nord). On bascule sur
+  // l'année en cours à partir de juillet.
+  const now = new Date();
+  const year = now.getFullYear();
+  return now.getMonth() + 1 >= 7 ? year : year - 1;
+}
+
+async function getSeasonFixtures(teamId) {
+  const season = currentSeason();
+  const cacheKey = `${STORAGE_KEYS.fixturesCachePrefix}season_${teamId}_${season}`;
+  return cachedGet(cacheKey, CACHE_TTL.lastFixtures, "fixtures", {
+    team: teamId,
+    season,
+  });
+}
 
 /** Prochains matchs d'une équipe */
 export async function getNextFixtures(teamId, count = 5) {
-  const cacheKey = `${STORAGE_KEYS.fixturesCachePrefix}next_${teamId}_${count}`;
-  return cachedGet(cacheKey, CACHE_TTL.nextFixtures, "fixtures", {
-    team: teamId,
-    next: count,
-  });
+  const all = await getSeasonFixtures(teamId);
+  const now = Date.now();
+  return all
+    .filter((fx) => ["NS", "TBD", "PST"].includes(fx.fixture.status.short) && new Date(fx.fixture.date).getTime() >= now)
+    .sort((a, b) => new Date(a.fixture.date) - new Date(b.fixture.date))
+    .slice(0, count);
 }
 
 /** Derniers matchs terminés d'une équipe */
 export async function getLastFixtures(teamId, count = 10) {
-  const cacheKey = `${STORAGE_KEYS.fixturesCachePrefix}last_${teamId}_${count}`;
-  return cachedGet(cacheKey, CACHE_TTL.lastFixtures, "fixtures", {
-    team: teamId,
-    last: count,
-  });
+  const all = await getSeasonFixtures(teamId);
+  return all
+    .filter((fx) => ["FT", "AET", "PEN"].includes(fx.fixture.status.short))
+    .sort((a, b) => new Date(b.fixture.date) - new Date(a.fixture.date))
+    .slice(0, count);
 }
 
 /** Événements (buts, cartons...) d'un match précis */
